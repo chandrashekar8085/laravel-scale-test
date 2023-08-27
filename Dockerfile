@@ -1,34 +1,45 @@
-FROM php:7.4-fpm
+FROM php:8.1
 
-# Arguments defined in docker-compose.yml
-ARG user
-ARG uid
-
-# Install system dependencies
+# Install packages
 RUN apt-get update && apt-get install -y \
     git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
     zip \
-    unzip
+    curl \
+    sudo \
+    unzip \
+    libicu-dev \
+    libbz2-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libmcrypt-dev \
+    libreadline-dev \
+    libfreetype6-dev \
+    g++
 
-# Clear cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+# Common PHP Extensions
+RUN docker-php-ext-install \
+    bz2 \
+    intl \
+    iconv \
+    bcmath \
+    opcache \
+    calendar \
+    pdo_mysql
 
-# Install PHP extensions
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+# Ensure PHP logs are captured by the container
+ENV LOG_CHANNEL=stderr
 
-# Get latest Composer
+# Set a volume mount point for your code
+VOLUME /var/www/html
+
+# Copy code and run composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+COPY . /var/www/tmp
+RUN cd /var/www/tmp && composer install --no-dev
 
-# Create system user to run Composer and Artisan Commands
-RUN useradd -G www-data,root -u $uid -d /home/$user $user
-RUN mkdir -p /home/$user/.composer && \
-    chown -R $user:$user /home/$user
+# Ensure the entrypoint file can be run
+RUN chmod +x /var/www/tmp/docker-entrypoint.sh
+ENTRYPOINT ["/var/www/tmp/docker-entrypoint.sh"]
 
-# Set working directory
-WORKDIR /var/www
-
-USER $user
+# The default apache run command
+CMD ["apache2-foreground"]
